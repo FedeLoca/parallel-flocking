@@ -7,11 +7,11 @@ int main(void) {
 	float separationWeigth = 1; // weight of the separation component in the blending
 	float cohesionWeigth = 1; // weight of the cohesion component in the blending
 	float alignWeigth = 1; // weight of the align component in the blending
-	int flockDim = 100000000; // 10000000 number of boids in the flock
-	float neighDim = 750000000; // 75000000 dimension of the neighborhood in meters
-	int minRand = -500000000; // -50000000 minimum value that can be generated for initial position and direction
-	int maxRand = 500000000; // 50000000 maximum value that can be generated for initial position and direction
-	float decimals = 2; // 0 number of decimal digits in the generated values for initial position and direction
+	int flockDim = 10000000; // 10000000 number of boids in the flock
+	float neighDim = 75000000; // 75000000 dimension of the neighborhood in meters
+	int minRand = -50000000; // -50000000 minimum value that can be generated for initial position and direction
+	int maxRand = 50000000; // 50000000 maximum value that can be generated for initial position and direction
+	float decimals = 3; // 0 number of decimal digits in the generated values for initial position and direction
 	int iterations = 1; // number of updates 
 
   Flock f{};
