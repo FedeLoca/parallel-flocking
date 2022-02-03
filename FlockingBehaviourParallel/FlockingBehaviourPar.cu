@@ -103,10 +103,9 @@ int main(void) {
 	int div = pow(10, decimals);
 	int numsToGenerate = flockDim * 6;
 
-	float *generatedNumsHost = (float *) malloc(numsToGenerate * sizeof(float));
-	float *generatedNumsDev;
+	float *generatedNums;
 	curandState *states;
-	CHECK(cudaMalloc((void **) &generatedNumsDev, numsToGenerate * sizeof(float)));
+	CHECK(cudaMallocManaged((void **) &generatedNums, numsToGenerate * sizeof(float)));
 	int blockSize = BLOCK_SIZE;
 	int gridSize = GRID_SIZE; 
 	int generationsPerThread = 5000; 
@@ -124,24 +123,22 @@ int main(void) {
 
 	initializeStates<<<gridSize, blockSize>>>(time(NULL), states);
 
-  generateBoidsStatus<<<gridSize, blockSize>>>(minRand, maxRand - minRand, div, flockDim, threadsNum, generationsPerThread, generatedNumsDev, states);
+  generateBoidsStatus<<<gridSize, blockSize>>>(minRand, maxRand - minRand, div, flockDim, threadsNum, generationsPerThread, generatedNums, states);
 
 	cudaEventRecord(stop);
 	CHECK(cudaEventSynchronize(stop));
 	cudaEventElapsedTime(&milliseconds, start, stop);
 	printf("    GPU elapsed time: %.5f (sec)\n", milliseconds / 1000);
 
-	CHECK(cudaMemcpy(generatedNumsHost, generatedNumsDev, numsToGenerate * sizeof(float), cudaMemcpyDeviceToHost));
-
 	printf("threadsNum: %i\n", threadsNum);
 	printf("effthreadsNum: %i\n", blockSize * gridSize);
   printf("genperthread: %i\n", generationsPerThread);
 
 	for(int i = 0; i < 12; i++){
-			printf("first: %.5f\n", generatedNumsHost[i]);
+			printf("first: %.5f\n", generatedNums[i]);
 	}
 	for(int i = 0; i < 12; i++){
-			printf("last: %.5f\n", generatedNumsHost[numsToGenerate - i - 1]);
+			printf("last: %.5f\n", generatedNums[numsToGenerate - i - 1]);
 	}
 
 	std::vector<float> dir;
@@ -161,12 +158,12 @@ int main(void) {
 			
 			for(int j = 0; j < threadGenerations; j++){
 					
-					p1 = generatedNumsHost[i + j * threadsNum];
-					p2 = generatedNumsHost[i + j * threadsNum + flockDim];
-					p3 = generatedNumsHost[i + j * threadsNum + 2 * flockDim];
-					d1 = generatedNumsHost[i + j * threadsNum + 3 * flockDim];
-					d2 = generatedNumsHost[i + j * threadsNum + 4 * flockDim];
-					d3 = generatedNumsHost[i + j * threadsNum + 5 * flockDim];
+					p1 = generatedNums[i + j * threadsNum];
+					p2 = generatedNums[i + j * threadsNum + flockDim];
+					p3 = generatedNums[i + j * threadsNum + 2 * flockDim];
+					d1 = generatedNums[i + j * threadsNum + 3 * flockDim];
+					d2 = generatedNums[i + j * threadsNum + 4 * flockDim];
+					d3 = generatedNums[i + j * threadsNum + 5 * flockDim];
 					f.addBoid(Boid{i/6, velocity, std::vector<float>{p1,p2,p3}, std::vector<float>{d1,d2,d3}});
 
 					if(a){
