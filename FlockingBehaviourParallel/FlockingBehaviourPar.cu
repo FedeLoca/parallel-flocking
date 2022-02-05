@@ -53,22 +53,7 @@ __global__ void generateBoidsStatus(int minRand, uint minMaxDiff, int div, uint 
 					generated[pos + 5 * flockDim] = d3 * value;
 					
 					/*
-					d1 = (curand_uniform(&localState) * minMaxDiff + minRand) / div;
-					d2 = (curand_uniform(&localState) * minMaxDiff + minRand) / div;
-					d3 = (curand_uniform(&localState) * minMaxDiff + minRand) / div;
-
-					magnitude = sqrt(d1*d1 + d2*d2 + d3*d3);
-
-					//if the magnitude is 0 avoid dividing for 0 and set the value to 0, otherwise calculate the value to normalize
-					value = !(magnitude == 0) * 1/(magnitude + (magnitude == 0));
-
 					pos = tid + (i+generationsPerThread) * threadsNum;
-					generated[pos] = (curand_uniform(&localState) * minMaxDiff + minRand) / div;
-					generated[pos + flockDim] = (curand_uniform(&localState) * minMaxDiff + minRand) / div;
-					generated[pos + 2 * flockDim] = (curand_uniform(&localState) * minMaxDiff + minRand) / div;
-					generated[pos + 3 * flockDim] = d1 * value;
-					generated[pos + 4 * flockDim] = d2 * value;
-					generated[pos + 5 * flockDim] = d3 * value;
 					*/
 			}		
 			
@@ -184,7 +169,7 @@ int main(void) {
 	cudaEventElapsedTime(&milliseconds, start, stop);
 	printf("    GPU elapsed time: %.5f (sec)\n", milliseconds / 1000);
 
-	CHECK(cudaFree(generatedNumsDev));
+	CHECK(cudaFree(generatedNums));
 	CHECK(cudaFree(states));
 
   // set flock parameters
