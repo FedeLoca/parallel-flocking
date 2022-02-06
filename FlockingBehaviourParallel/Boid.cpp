@@ -1,18 +1,24 @@
 #include "Boid.h"
 
-Boid::Boid(): id{0}, velocity{1}, direction{0,0,0}, position{0,0,0} {}
+Boid::Boid(const int id, const float vel, float* pos, float* dir): id{id}, velocity{vel}, direction{dir}, position{pos} {}
 
-Boid::Boid(const int id, const float vel, const std::vector<float>& pos, const std::vector<float>& dir): id{id}, velocity{vel}, direction{dir}, position{pos} {}
+float* Boid::getDirection() const { return direction; }
 
-const std::vector<float>& Boid::getDirection() const { return direction; }
-
-const std::vector<float>& Boid::getPosition() const { return position; }
+float* Boid::getPosition() const { return position; }
 
 const int& Boid::getId() const { return id; }
 
-void Boid::setDirection(const std::vector<float>& dir) { direction = dir; }
+void Boid::setDirection(float* dir) { 
+    direction[0] = dir[0]; 
+    direction[1] = dir[1]; 
+    direction[2] = dir[2]; 
+}
 
-void Boid::setPosition(const std::vector<float>& pos) { position = pos; }
+void Boid::setPosition(float* pos) { 
+    position[0] = pos[0];
+    position[1] = pos[1];
+    position[2] = pos[2];
+}
 
 void Boid::move(float time) { 
     

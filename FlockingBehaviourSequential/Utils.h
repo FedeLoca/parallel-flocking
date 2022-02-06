@@ -10,25 +10,25 @@ typedef unsigned long ulong;
 typedef unsigned int uint;
 
 // returns the distance between the passed vectors
-float vector3Distance(const std::vector<float>&, const std::vector<float>&);
+float vector3Distance(const float*, const float*);
 
 // returns the sum of the passed vectors
-std::vector<float> vector3Sum(const std::vector<float>&, const std::vector<float>&);
+void vector3Sum(const float*, const float*, float*);
 
 // returns the subtraction of the passed vectors
-std::vector<float> vector3Sub(const std::vector<float>&, const std::vector<float>&);
+void vector3Sub(const float*, const float*, float*);
 
 // returns the multiplication of the passed vectors
-std::vector<float> vector3Mul(const std::vector<float>&, const float);
+void vector3Mul(const float*, const float, float*);
 
 // returns the blending of the passed vectors representing directions
-std::vector<float> blendDirections(const std::vector<float>&, const std::vector<float>&, const std::vector<float>&);
+void blendDirections(const float*, const float*, const float*, float*);
 
 // returns the magnitude of the passed vector
-float vector3Magnitude(const std::vector<float>&);
+float vector3Magnitude(const float*);
 
 // normalizes the passed vector
-void vector3Normalize(std::vector<float>&);
+void vector3Normalize(float*);
 
 inline double seconds() {
     struct timeval tp;

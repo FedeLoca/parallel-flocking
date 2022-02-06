@@ -53,17 +53,17 @@ void Flock::updateNeighborhoodMap(){
 
 void Flock::updateFlock(float time){
     
-    std::vector<float> cohesion;
-    std::vector<float> separation;
-    std::vector<float> align;
-    std::vector<float> finalDirection;
+    float* cohesion = (float*) malloc(3*sizeof(float));
+    float* separation = (float*) malloc(3*sizeof(float));
+    float* align = (float*) malloc(3*sizeof(float));
+    float* finalDirection = (float*) malloc(3*sizeof(float));
 		for(auto& elem : boidsMap){
       
-        separation = getSeparationDirection(elem.first);
-        cohesion = getCohesionDirection(elem.first);
-        align = getAlignDirection(elem.first);
+        getSeparationDirection(elem.first, separation);
+        getCohesionDirection(elem.first, cohesion);
+        getAlignDirection(elem.first, align);
 
-        finalDirection = blendDirections(separation, cohesion, align);
+        blendDirections(separation, cohesion, align, finalDirection);
         if (finalDirection[0] != 0 || finalDirection[1] != 0 || finalDirection[2] != 0) {
             elem.second.setDirection(finalDirection);
         }
@@ -71,51 +71,55 @@ void Flock::updateFlock(float time){
         elem.second.move(time);
     }
 
+    free(cohesion);
+    free(separation);
+    free(align);
+    free(finalDirection);
+
     updateNeighborhoodMap();
 }
 
-std::vector<float> Flock::getSeparationDirection(int b) const{
+void Flock::getSeparationDirection(int b, float* separation) const{
     
-    std::vector<float> separation{0,0,0};
-    std::vector<float> tmp;
+    float* tmp = (float*) malloc(3*sizeof(float));
     for(const auto& n : neighborhoodMap.at(b)){
-        tmp = vector3Sub(boidsMap.at(b).getPosition(), boidsMap.at(n).getPosition());
+        vector3Sub(boidsMap.at(b).getPosition(), boidsMap.at(n).getPosition(), tmp);
         vector3Normalize(tmp);
-        tmp = vector3Mul(tmp, 1/(vector3Magnitude(tmp) + 0.0001));
-        separation = vector3Sum(separation, tmp);
+        vector3Mul(tmp, 1/(vector3Magnitude(tmp) + 0.0001), tmp);
+        vector3Sum(separation, tmp, separation);
     }
 
     vector3Normalize(separation);
-    return vector3Mul(separation, separationWeigth);
+    vector3Mul(separation, separationWeigth, separation);
+
+    free(tmp);
 }
 
-std::vector<float> Flock::getCohesionDirection(int b) const{
+void Flock::getCohesionDirection(int b, float* cohesion) const{
     
-    std::vector<float> cohesion{0,0,0};
     float count = 0.0;
     for(const auto& n : neighborhoodMap.at(b)){
-        cohesion = vector3Sum(cohesion, boidsMap.at(n).getPosition());
+        vector3Sum(cohesion, boidsMap.at(n).getPosition(), cohesion);
         count++;
     }
 
     if(count != 0){
-        cohesion = vector3Mul(cohesion, 1.0/count);
-        cohesion = vector3Sub(cohesion, boidsMap.at(b).getPosition());
+        vector3Mul(cohesion, 1.0/count, cohesion);
+        vector3Sub(cohesion, boidsMap.at(b).getPosition(), cohesion);
     }
 
     vector3Normalize(cohesion);
-    return vector3Mul(cohesion, cohesionWeigth);
+    vector3Mul(cohesion, cohesionWeigth, cohesion);
 }
 
-std::vector<float> Flock::getAlignDirection(int b) const{
+void Flock::getAlignDirection(int b, float* align) const{
     
-    std::vector<float> align{0,0,0};
     for(const auto& n : neighborhoodMap.at(b)){
-        align = vector3Sum(align, boidsMap.at(n).getDirection());
+        vector3Sum(align, boidsMap.at(n).getDirection(), align);
     }
 
     vector3Normalize(align);
-    return vector3Mul(align, alignWeigth);
+    vector3Mul(align, alignWeigth, align);
 }
 
 void Flock::print() const{

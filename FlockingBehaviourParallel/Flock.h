@@ -32,9 +32,9 @@ class Flock{
     // direction as the current direction of the boid only if it is not (0,0,0). otherwise the old direction is maintained
     void updateFlock(float);
 
-    std::vector<float> getSeparationDirection(const int) const;
-    std::vector<float> getCohesionDirection(const int) const;
-    std::vector<float> getAlignDirection(const int) const;
+    void getSeparationDirection(const int, float*) const;
+    void getCohesionDirection(const int, float*) const;
+    void getAlignDirection(const int, float*) const;
 
     void print() const;
     void printNeighborhoods() const;
