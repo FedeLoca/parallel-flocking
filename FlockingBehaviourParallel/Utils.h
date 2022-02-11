@@ -14,24 +14,30 @@ typedef unsigned int uint;
 
 // returns the distance between the passed vectors
 float vector3Distance(const float*, const float*);
+float vector3Distance(const float*, const float*, const float*, const float*, const float*, const float*);
 
 // returns the sum of the passed vectors
 void vector3Sum(const float*, const float*, float*);
+void vector3Sum(const float*, const float*, const float*, const float*, const float*, const float*, float*);
 
 // returns the subtraction of the passed vectors
 void vector3Sub(const float*, const float*, float*);
+void vector3Sub(const float*, const float*, const float*, const float*, const float*, const float*, float*);
 
 // returns the multiplication of the passed vectors
 void vector3Mul(const float*, const float, float*);
+void vector3Mul(const float*, const float*, const float*, const float, float*);
 
 // returns the blending of the passed vectors representing directions
 void blendDirections(const float*, const float*, const float*, float*);
 
 // returns the magnitude of the passed vector
 float vector3Magnitude(const float*);
+float vector3Magnitude(const float*, const float*, const float*);
 
 // normalizes the passed vector
 void vector3Normalize(float*);
+void vector3Normalize(float*, float*, float*);
 
 #define CHECK(call)                                                           \
 {                                                                              \

@@ -4,6 +4,10 @@ float vector3Distance(const float* v, const float* w){
     return sqrt(pow(w[0] - v[0], 2) + pow(w[1] - v[1], 2) + pow(w[2] - v[2], 2));
 }
 
+float vector3Distance(const float* a, const float* b, const float* c, const float* x, const float* y, const float* z){
+    return sqrt(pow(a[0] - x[0], 2) + pow(b[0] - y[0], 2) + pow(c[0] - z[0], 2));
+}
+
 void vector3Sum(const float* v, const float* w, float* res){
     
     res[0] = v[0] + w[0];
