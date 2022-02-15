@@ -162,11 +162,13 @@ void updateFlock(float time){
 void getSeparationDirection(int i, float* separation){
     
     float* tmp = (float*) malloc(3*sizeof(float));
+		float magnitude;
     for(int j = 0; j < flockDim; j++){
 				if(neighborhoods[i*flockDim+j]){
 						vector3Sub(flockData+i*6, flockData+j*6, tmp);
+						magnitude = vector3Magnitude(tmp);
 						vector3Normalize(tmp);
-						vector3Mul(tmp, 1/(vector3Magnitude(tmp) + 0.0001), tmp);
+						vector3Mul(tmp, 1/(magnitude + 0.0001), tmp);
 						vector3Sum(separation, tmp, separation);
 				}
     }

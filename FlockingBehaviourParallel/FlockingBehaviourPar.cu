@@ -6,14 +6,14 @@
 //64   32
 #define NEIGH_BLOCK_SIZE 256
 //128
-#define UPDATE_BLOCK_SIZE 256
+#define UPDATE_BLOCK_SIZE 512
 
 float velocity = 20; // boid velocity in meters per second
 double updateTime = 1.5; // update time of the simulation in seconds
-float separationWeigth = 1; // weight of the separation component in the blending
-float cohesionWeigth = 1; // weight of the cohesion component in the blending
-float alignWeigth = 1; // weight of the align component in the blending
-int flockDim = 10240; // 10000000 number of boids in the flock
+float separationWeight = 1; // weight of the separation component in the blending
+float cohesionWeight = 1; // weight of the cohesion component in the blending
+float alignWeight = 1; // weight of the align component in the blending
+int flockDim = 1024; // 10000000 number of boids in the flock
 float neighDim = 50; // 50 dimension of the neighborhood in meters
 float tolerance = 0.1f; //tolerance for float comparison
 int minRand = -50000; // -50000 minimum value that can be generated for initial position and direction
@@ -22,11 +22,14 @@ float decimals = 3; // 3 number of decimal digits in the generated values for in
 int iterations = 1; // number of updates
 int generationsPerThread = 250; //2500 number of boids a thread must generate
 
-__constant__ float velocityDev;
-__constant__ double updateTimeDev;
-__constant__ float separationWeigthDev;
-__constant__ float cohesionWeigthDev;
-__constant__ float alignWeigthDev;
+float* flockData;
+bool* neighborhoods;
+bool* neighborhoodsSeq;
+
+__constant__ float movementDev;
+__constant__ float separationWeightDev;
+__constant__ float cohesionWeightDev;
+__constant__ float alignWeightDev;
 __constant__ int flockDimDev;
 __constant__ float neighDimDev;
 __constant__ float toleranceDev;
@@ -37,140 +40,6 @@ __constant__ int threadsNumDev;
 __constant__ int generationsPerThreadDev;
 __constant__ int lastThreadGenerationsDev;
 
-float* flockData;
-bool* neighborhoods;
-bool* neighborhoodsSeq;
-
-void computeNeighborhoods(){
-    
-    for(int i = 0; i < flockDim; i++){
-				for(int j = 0; j < flockDim; j++){
-						if(j > i){	
-								neighborhoodsSeq[i*flockDim+j] = vector3Distance(flockData+i, flockData+i+flockDim, flockData+i+2*flockDim, flockData+j, flockData+j+flockDim, flockData+j+2*flockDim) <= neighDim;
-						}
-						else if(i == j){
-								neighborhoodsSeq[i*flockDim+j] = 0;
-						}
-						else{
-								neighborhoodsSeq[i*flockDim+j] = neighborhoodsSeq[j*flockDim+i];
-						}
-				}
-    }
-}
-
-void printBoid(int i){
-		
-		std::cout << std::setprecision(4) << "Boid " << i << ": " << "pos(" << flockData[i] << ", " << flockData[i+flockDim] << ", " << flockData[i+flockDim*2] << 
-		"); dir(" << flockData[i+flockDim*3] << ", " << flockData[i+flockDim*4] << ", " << flockData[i+flockDim*5] << ")" << std::endl;
-}
-
-void printFlock(){
-    
-    for(int i = 0; i < flockDim; i++){
-				std::cout << std::setprecision(4) << "Boid " << i << ": " << "pos(" << flockData[i] << ", " << flockData[i+flockDim] << ", " << flockData[i+flockDim*2] << 
-				"); dir(" << flockData[i+flockDim*3] << ", " << flockData[i+flockDim*4] << ", " << flockData[i+flockDim*5] << ")" << std::endl;
-    }
-}
-
-void printNeighborhoods(){
-    
-    for(int i = 0; i < flockDim; i++){
-				std::cout << i << ": ";
-				for(int j = 0; j < flockDim; j++){
-						if(neighborhoods[i*flockDim+j]){
-								std::cout << j << ", ";
-						}
-				}
-				std::cout << std::endl;
-    }
-}
-
-void updateFlock(float time){
-    
-    float* cohesion = (float*) malloc(3*sizeof(float));
-    float* separation = (float*) malloc(3*sizeof(float));
-    float* align = (float*) malloc(3*sizeof(float));
-    float* finalDirection = (float*) malloc(3*sizeof(float));
-		for(int i = 0; i < flockDim; i++){
-      
-        getSeparationDirection(i, separation);
-        getCohesionDirection(i, cohesion);
-        getAlignDirection(i, align);
-
-        blendDirections(separation, cohesion, align, finalDirection);
-        if (finalDirection[0] != 0 || finalDirection[1] != 0 || finalDirection[2] != 0) {
-            flockData[i+3*flockDim] = finalDirection[0];
-						flockData[i+4*flockDim] = finalDirection[1];
-						flockData[i+5*flockDim] = finalDirection[2];
-        }
-
-        moveBoid(i, time);
-    }
-
-    free(cohesion);
-    free(separation);
-    free(align);
-    free(finalDirection);
-
-    computeNeighborhoods();
-}
-
-void getSeparationDirection(int i, float* separation){
-    
-    float* tmp = (float*) malloc(3*sizeof(float));
-    for(int j = 0; j < flockDim; j++){
-				if(neighborhoodsSeq[i*flockDim+j]){
-						vector3Sub(flockData+i, flockData+i+flockDim, flockData+i+2*flockDim, flockData+j, flockData+j+flockDim, flockData+j+2*flockDim, tmp);
-						vector3Normalize(tmp);
-						vector3Mul(tmp, 1/(vector3Magnitude(tmp) + 0.0001), tmp);
-						vector3Sum(separation, tmp, separation);
-				}
-    }
-
-    vector3Normalize(separation);
-    vector3Mul(separation, separationWeigth, separation);
-
-    free(tmp);
-}
-
-void getCohesionDirection(int i, float* cohesion){
-    
-    float count = 0.0;
-    for(int j = 0; j < flockDim; j++){
-				if(neighborhoods[i*flockDim+j]){
-						vector3Sum(cohesion, cohesion+1, cohesion+2, flockData+j, flockData+j+flockDim, flockData+j+2*flockDim, cohesion);
-						count++;
-				}
-    }
-
-    if(count != 0){
-        vector3Mul(cohesion, 1.0/count, cohesion);
-        vector3Sub(cohesion, cohesion+1, cohesion+2, flockData+i, flockData+i+flockDim, flockData+i+2*flockDim, cohesion);
-    }
-
-    vector3Normalize(cohesion);
-    vector3Mul(cohesion, cohesionWeigth, cohesion);
-}
-
-void getAlignDirection(int i, float* align){
-    
-    for(int j = 0; j < flockDim; j++){
-				if(neighborhoods[i*flockDim+j]){
-        		vector3Sum(align, align+1, align+2, flockData+j+3*flockDim, flockData+j+4*flockDim, flockData+j+5*flockDim, align);
-				}
-    }
-
-    vector3Normalize(align);
-    vector3Mul(align, alignWeigth, align);
-}
-
-void moveBoid(int i, float time) { 
-    
-    for(int j = 0; j < 3; j++){
-        flockData[i+j*flockDim] += flockData[i+j*flockDim] * velocity * time;
-    }
-}
-
 /*
  * Initialize cuRAND states
  */
@@ -179,6 +48,27 @@ __global__ void initializeStates(uint seed, curandState* states) {
 		uint tid = threadIdx.x + blockDim.x * blockIdx.x;
 
 		curand_init(seed, tid, 0, &states[tid]);
+}
+
+
+__device__ void generateBoidGPU(uint i, curandState* localState, float* generated, uint pos, float d1, float d2, float d3, float value){
+		
+		d1 = (curand_uniform(localState) * minMaxDiffDev + minRandDev) / divDev;
+		d2 = (curand_uniform(localState) * minMaxDiffDev + minRandDev) / divDev;
+		d3 = (curand_uniform(localState) * minMaxDiffDev + minRandDev) / divDev;
+
+		value = sqrt(d1*d1 + d2*d2 + d3*d3);
+
+		//if the magnitude is 0 avoid dividing for 0 and set the value to 0, otherwise calculate the value to normalize
+		value = !(value == 0) * 1/(value + (value == 0));
+
+		pos += (i <= lastThreadGenerationsDev) * threadsNumDev + (i > lastThreadGenerationsDev) * (threadsNumDev - 1);
+		generated[pos] = (curand_uniform(localState) * minMaxDiffDev + minRandDev) / divDev;
+		generated[pos + flockDimDev] = (curand_uniform(localState) * minMaxDiffDev + minRandDev) / divDev;
+		generated[pos + 2 * flockDimDev] = (curand_uniform(localState) * minMaxDiffDev + minRandDev) / divDev;
+		generated[pos + 3 * flockDimDev] = d1 * value;
+		generated[pos + 4 * flockDimDev] = d2 * value;
+		generated[pos + 5 * flockDimDev] = d3 * value;
 }
 
 /*
@@ -218,6 +108,8 @@ __global__ void generateBoidsStatus(float* generated, curandState* states) {
 					generated[pos + 3 * flockDimDev] = d1 * value;
 					generated[pos + 4 * flockDimDev] = d2 * value;
 					generated[pos + 5 * flockDimDev] = d3 * value;
+
+					//generateBoidGPU(i, &localState, generated, pos, d1, d2, d3, value);
 			}		
 			
 			states[tid] = localState;
@@ -230,10 +122,6 @@ __global__ void generateBoidsStatus(float* generated, curandState* states) {
 __global__ void computeAllNeighborhoods(float* flockData, bool* neighborhoods) {
 
 		uint tid = threadIdx.x + blockDim.x * blockIdx.x;
-
-		if(tid == 0){
-				printf("aaaa: %.5f, %.5f", neighDimDev, toleranceDev);
-		}
 
 		if(tid < threadsNumDev){
 				
@@ -267,14 +155,117 @@ __global__ void computeAllNeighborhoods(float* flockData, bool* neighborhoods) {
 						}
 				}
 				*/
-
-				/*
-				value = sqrt(pow(flockData[tid] - flockData[i], 2) + pow(flockData[tid+flockDimDev] - flockData[i+flockDimDev], 2) + pow(flockData[tid+2*flockDimDev] - flockData[i+2*flockDimDev], 2)) <= neighDimDev;
-				//value = (tid == i) * 0 + !(tid == i) * value;
-				neighborhoods[i*flockDimDev+tid] = value;
-				//neighborhoods[tid*flockDimDev+i] = value;
-				*/
 		}
+}
+
+__device__ void computeCohesionGPU(uint tid, bool* neighborhoods, float* flockData, float* cohesions){
+		
+		cohesions[tid] = 0;
+		cohesions[tid+flockDimDev] = 0;
+		cohesions[tid+2*flockDimDev] = 0;
+
+		float count = 0.0;
+		for(int i = 0; i < flockDimDev; i++){
+				
+				if(neighborhoods[i*flockDimDev+tid]){
+						
+						cohesions[tid] += flockData[i];
+						cohesions[tid+flockDimDev] += flockData[i+flockDimDev];
+						cohesions[tid+2*flockDimDev] += flockData[i+2*flockDimDev];
+						count += 1;
+				}
+		}
+
+		if(count != 0){
+				
+				count = 1.0/count;
+				cohesions[tid] *= count;
+				cohesions[tid+flockDimDev] *= count;
+				cohesions[tid+2*flockDimDev] *= count;
+
+				cohesions[tid] -= flockData[tid];
+				cohesions[tid+flockDimDev] -= flockData[tid+flockDimDev];
+				cohesions[tid+2*flockDimDev] -= flockData[tid+2*flockDimDev];
+		}
+
+		float normValue;
+		normValue = sqrt(cohesions[tid]*cohesions[tid] + cohesions[tid+flockDimDev]*cohesions[tid+flockDimDev] + cohesions[tid+2*flockDimDev]*cohesions[tid+2*flockDimDev]);
+		normValue = !(normValue == 0) * 1/(normValue + (normValue == 0));
+		normValue *= cohesionWeightDev;
+
+		cohesions[tid] *= normValue;
+		cohesions[tid+flockDimDev] *= normValue;
+		cohesions[tid+2*flockDimDev] *= normValue;
+}
+
+__device__ void computeSeparationGPU(uint tid, bool* neighborhoods, float* flockData, float* separations){
+		
+		separations[tid] = 0;
+		separations[tid+flockDimDev] = 0;
+		separations[tid+2*flockDimDev] = 0;
+
+		float tmp1;
+		float tmp2;
+		float tmp3;
+		float magValue;
+		float normValue;
+		for(int i = 0; i < flockDimDev; i++){
+				
+				if(neighborhoods[i*flockDimDev+tid]){
+						
+						tmp1 = flockData[tid] - flockData[i];
+						tmp2 = flockData[tid+flockDimDev] - flockData[i+flockDimDev];
+						tmp3 = flockData[tid+2*flockDimDev] - flockData[i+2*flockDimDev];
+
+						normValue = sqrt(tmp1*tmp1 + tmp2*tmp2 + tmp3*tmp3);
+						magValue = normValue;
+						magValue = 1/(magValue + 0.0001f);
+						normValue = !(normValue == 0) * 1/(normValue + (normValue == 0));
+						normValue *= magValue;
+
+						tmp1 *= normValue;
+						tmp2 *= normValue;
+						tmp3 *= normValue;
+
+						separations[tid] += tmp1;
+						separations[tid+flockDimDev] += tmp2;
+						separations[tid+2*flockDimDev] += tmp3;
+				}
+		}
+
+		normValue = sqrt(separations[tid]*separations[tid] + separations[tid+flockDimDev]*separations[tid+flockDimDev] + separations[tid+2*flockDimDev]*separations[tid+2*flockDimDev]);
+		normValue = !(normValue == 0) * 1/(normValue + (normValue == 0));
+		normValue *= separationWeightDev;
+
+		separations[tid] *= normValue;
+		separations[tid+flockDimDev] *= normValue;
+		separations[tid+2*flockDimDev] *= normValue;
+}
+
+__device__ void computeAlignGPU(uint tid, bool* neighborhoods, float* flockData, float* aligns){
+		
+		aligns[tid] = 0;
+		aligns[tid+flockDimDev] = 0;
+		aligns[tid+2*flockDimDev] = 0;
+
+		for(int i = 0; i < flockDimDev; i++){
+				
+				if(neighborhoods[i*flockDimDev+tid]){
+						
+						aligns[tid] += flockData[i+3*flockDimDev];
+						aligns[tid+flockDimDev] += flockData[i+4*flockDimDev];
+						aligns[tid+2*flockDimDev] += flockData[i+5*flockDimDev];
+				}
+		}
+
+		float normValue;
+		normValue = sqrt(aligns[tid]*aligns[tid] + aligns[tid+flockDimDev]*aligns[tid+flockDimDev] + aligns[tid+2*flockDimDev]*aligns[tid+2*flockDimDev]);
+		normValue = !(normValue == 0) * 1/(normValue + (normValue == 0));
+		normValue *= alignWeightDev;
+
+		aligns[tid] *= normValue;
+		aligns[tid+flockDimDev] *= normValue;
+		aligns[tid+2*flockDimDev] *= normValue;
 }
 
 /*
@@ -286,13 +277,78 @@ __global__ void updateFlock(float* flockData, bool* neighborhoods) {
 
 		if(tid < threadsNumDev){
 				
+				extern __shared__ float cohesions[];
+				float* separations = cohesions+3*flockDimDev;
+				float* aligns = cohesions+6*flockDimDev;
 				
+				if(tid < flockDimDev-1){
+						
+						// first block calculates cohesion
+
+						/*
+						bool isNeighbor;
+						isNeighbor = neighborhoods[i*flockDimDev+tid];
+						cohesions[tid] += flockData[i] * isNeighbor;
+						cohesions[tid+flockDimDev] += flockData[i+flockDimDev] * isNeighbor;
+						cohesions[tid+2*flockDimDev] += flockData[i+2*flockDimDev] * isNeighbor;
+						tmp += 1 * isNeighbor;
+						*/
+
+						computeCohesionGPU(tid, neighborhoods, flockData, cohesions);
+				}
+				else if(tid >= flockDimDev-1 && tid < tid < 2*flockDimDev-1){
+						
+						// second block calculates separation
+
+						computeSeparationGPU(tid, neighborhoods, flockData, separations);
+				}
+				else{
+						
+						// third block calculates align
+
+						computeAlignGPU(tid, neighborhoods, flockData, aligns);
+			  }
+
+				__syncthreads();
+
+				// blend contributions and move in the resulting direction
+
+				float tmp1;
+				float tmp2;
+				float tmp3;
+				if(tid < flockDimDev-1){
+						
+						tmp1 = cohesions[tid] + separations[tid] + aligns[tid];
+						tmp2 = cohesions[tid+flockDimDev] + separations[tid+flockDimDev] + aligns[tid+flockDimDev];
+						tmp3 = cohesions[tid+2*flockDimDev] + separations[tid+2*flockDimDev] + aligns[tid+2*flockDimDev];
+
+						flockData[tid] += tmp1 * movementDev;
+						flockData[tid+flockDimDev] += tmp2 * movementDev;
+						flockData[tid+2*flockDimDev] += tmp3 * movementDev;
+
+						flockData[tid+3*flockDimDev] = tmp1;
+						flockData[tid+4*flockDimDev] = tmp2;
+						flockData[tid+5*flockDimDev] = tmp3;
+
+				}
 		}
 }
 
 int main(void) {
 
 		device_name();
+
+		printf("\nFlock dimension: %i\n", flockDim);
+		printf("Neighborhood dimension: %.2f\n", neighDim);
+		printf("Velocity: %.2f\n", velocity);
+		printf("Update time: %.2f\n", updateTime);
+		printf("Iterations: %i\n", iterations);
+		printf("Separation weight: %.2f\n", separationWeight);
+		printf("Cohesion weight: %.2f\n", cohesionWeight);
+		printf("Align weight: %.2f\n", alignWeight);
+		printf("Minimum random number: %i\n", minRand);
+		printf("Maximum random number: %i\n", maxRand);
+		printf("Decimal digits of random numbers: %.2f\n", decimals);
 
 		// create events to measure time
 		cudaEvent_t start, stop;
@@ -301,6 +357,8 @@ int main(void) {
 		float milliseconds = 0;
 		double cpuTimeStart;
 		double cpuTime;
+
+		// -------------------------------------FLOCK GENERATION---------------------------------------------
 
 		// prepare for flock generation
 		int minMaxDiff = maxRand - minRand;
@@ -317,11 +375,9 @@ int main(void) {
 		int lastThreadGenerations = flockDim - generationsPerThread * (threadsNum - 1);
 
 		// initialize all constant values
-		cudaMemcpyToSymbol(velocityDev, &velocity, sizeof(velocityDev));
-		cudaMemcpyToSymbol(updateTimeDev, &updateTime, sizeof(updateTimeDev));
-		cudaMemcpyToSymbol(separationWeigthDev, &separationWeigth, sizeof(separationWeigthDev));
-		cudaMemcpyToSymbol(cohesionWeigthDev, &cohesionWeigth, sizeof(cohesionWeigthDev));
-		cudaMemcpyToSymbol(alignWeigthDev, &alignWeigth, sizeof(alignWeigthDev));
+		cudaMemcpyToSymbol(separationWeightDev, &separationWeight, sizeof(separationWeightDev));
+		cudaMemcpyToSymbol(cohesionWeightDev, &cohesionWeight, sizeof(cohesionWeightDev));
+		cudaMemcpyToSymbol(alignWeightDev, &alignWeight, sizeof(alignWeightDev));
 		cudaMemcpyToSymbol(flockDimDev, &flockDim, sizeof(flockDimDev));
 		cudaMemcpyToSymbol(neighDimDev, &neighDim, sizeof(neighDimDev));
 		cudaMemcpyToSymbol(toleranceDev, &tolerance, sizeof(toleranceDev));
@@ -332,10 +388,10 @@ int main(void) {
 		cudaMemcpyToSymbol(generationsPerThreadDev, &generationsPerThread, sizeof(generationsPerThreadDev));
 		cudaMemcpyToSymbol(lastThreadGenerationsDev, &lastThreadGenerations, sizeof(lastThreadGenerationsDev));
 
-		printf("\nthreadsNum: %i\n", threadsNum);
-		printf("effthreadsNum: %i\n", blockSize * gridSize);
-		printf("genperthread: %i\n", generationsPerThread);
-		printf("lastthreadgen: %i\n", lastThreadGenerations);
+		printf("\nNeeded threads number: %i\n", threadsNum);
+		printf("Threads used: %i\n", blockSize * gridSize);
+		printf("Generations per thread: %i\n", generationsPerThread);
+		printf("Generations of last thread: %i\n", lastThreadGenerations);
 		if(threadsNum > blockSize * gridSize){
 				std::cout << "\nNot enough threads" << std::endl;
 		}
@@ -346,6 +402,8 @@ int main(void) {
 
 		initializeStates<<<gridSize, blockSize>>>(time(NULL), states);
 
+		CHECK(cudaDeviceSynchronize());
+
 		generateBoidsStatus<<<gridSize, blockSize>>>(flockData, states);
 
 		cudaEventRecord(stop);
@@ -353,42 +411,25 @@ int main(void) {
 		cudaEventElapsedTime(&milliseconds, start, stop);
 		printf("    GPU elapsed time: %.5f (sec)\n", milliseconds / 1000);
 
-		//print the first 10 and the last 10 boids to check the generation correctness 
+		//print some boids to check the generation correctness 
 		for(int i = 0; i < 10; i++){
-				std::cout << std::setprecision(4) << "Boid " << i << ": " << "pos(" << flockData[i] << ", " << flockData[i+flockDim] << ", " << flockData[i+flockDim*2] << 
-					"); dir(" << flockData[i+flockDim*3] << ", " << flockData[i+flockDim*4] << ", " << flockData[i+flockDim*5] << ")" << std::endl;
-				printf("Boid direction magnitude: %.5f\n", vector3Magnitude(flockData+i+flockDim*3, flockData+i+flockDim*4, flockData+i+flockDim*5));
+				printBoid(i, flockData, flockDim);
 		}
-
-		for(int i = 0; i < 10; i++){
-				std::cout << std::setprecision(4) << "Boid " << flockDim-1-i << ": " << "pos(" << flockData[flockDim-1-i] << ", " << flockData[flockDim-1-i+flockDim] << ", " << flockData[flockDim-1-i+flockDim*2] << 
-					"); dir(" << flockData[flockDim-1-i+flockDim*3] << ", " << flockData[flockDim-1-i+flockDim*4] << ", " << flockData[flockDim-1-i+flockDim*5] << ")" << std::endl;
-				printf("Boid direction magnitude: %.5f\n", vector3Magnitude(flockData+flockDim-1-i+flockDim*3, flockData+flockDim-1-i+flockDim*4, flockData+flockDim-1-i+flockDim*5));
+		for(int i = flockDim-11; i < flockDim-1; i++){
+				printBoid(i, flockData, flockDim);
 		}
-
 		for(int i = flockDim/2-5; i < flockDim/2+5; i++){
-				std::cout << std::setprecision(4) << "Boid " << i << ": " << "pos(" << flockData[i] << ", " << flockData[i+flockDim] << ", " << flockData[i+flockDim*2] << 
-					"); dir(" << flockData[i+flockDim*3] << ", " << flockData[i+flockDim*4] << ", " << flockData[i+flockDim*5] << ")" << std::endl;
-				printf("Boid direction magnitude: %.5f\n", vector3Magnitude(flockData+i+flockDim*3, flockData+i+flockDim*4, flockData+i+flockDim*5));
+				printBoid(i, flockData, flockDim);
 		}
 
 		// generate flock sequentially to measure the speed-up
-		/*
+
 		float* flockDataSeq = (float*) malloc(numsToGenerate * sizeof(float));
 
 		printf("\n\nCPU Flock generation...\n");
 		cpuTimeStart = seconds();
 
-		for(int i = 0; i < numsToGenerate; i+=6){
-			flockDataSeq[i] = (minRand + rand() % (maxRand + 1 - minRand)) / div;
-			flockDataSeq[i+1] = (minRand + rand() % (maxRand + 1 - minRand)) / div;
-			flockDataSeq[i+2] = (minRand + rand() % (maxRand + 1 - minRand)) / div;
-			flockDataSeq[i+3] = (minRand + rand() % (maxRand + 1 - minRand)) / div;
-			flockDataSeq[i+4] = (minRand + rand() % (maxRand + 1 - minRand)) / div;
-			flockDataSeq[i+5] = (minRand + rand() % (maxRand + 1 - minRand)) / div;
-		
-			vector3Normalize(flockDataSeq+i+3);
-		}
+		generateFlock(flockDataSeq, numsToGenerate, maxRand, minRand, div);
 
 		cpuTime = seconds() - cpuTimeStart;
 		printf("    CPU elapsed time: %.5f (sec)\n", cpuTime);
@@ -396,9 +437,11 @@ int main(void) {
 		printf("				Speedup: %.2f\n", cpuTime/(milliseconds / 1000));
 
 		free(flockDataSeq);
-		*/
+
 
 		CHECK(cudaFree(states));
+
+		// -------------------------------------NEIGHBORHOODS CALCULATION---------------------------------------------
 
 		// prepare for neighborhood calculation
 		// neighborhoods data stored in a boolean matrix
@@ -435,16 +478,9 @@ int main(void) {
 				printf("last neigh: %d\n", neighborhoods[(flockDim-1)*flockDim+flockDim-1-i]);
 		}
 
-		/*
-		for(int i = 0; i < flockDim; i++){
-				std::cout << std::setprecision(4) << "Boid " << i << ": " << "pos(" << flockData[i] << ", " << flockData[i+flockDim] << ", " << flockData[i+flockDim*2] << 
-				"); dir(" << flockData[i+flockDim*3] << ", " << flockData[i+flockDim*4] << ", " << flockData[i+flockDim*5] << ")" << std::endl;
-    }
-		*/
-
-		//printFlock();		
+		//printFlock(flockData, flockDim);		
 		//std::cout << std::endl;
-		//printNeighborhoods();
+		//printNeighborhoods(neighborhoodsSeq, flockDim);
 		//std::cout << std::endl;
 		//std::cout << std::endl;
 
@@ -455,81 +491,45 @@ int main(void) {
 		printf("\n\nCPU Neighborhoods computation...\n");
 		cpuTimeStart = seconds();
 
-		float dist;
-		for(int i = 0; i < flockDim; i++){
-				for(int j = 0; j < flockDim; j++){
-						if(j > i){	
-								dist = vector3Distance(flockData+i, flockData+i+flockDim, flockData+i+2*flockDim, flockData+j, flockData+j+flockDim, flockData+j+2*flockDim);
-								neighborhoodsSeq[i*flockDim+j] = (dist <= neighDim);
-						}
-						else if(i == j){
-								neighborhoodsSeq[i*flockDim+j] = 0;
-						}
-						else{
-								neighborhoodsSeq[i*flockDim+j] = neighborhoodsSeq[j*flockDim+i];
-						}
-				}
-    }
+		computeNeighborhoods(neighborhoodsSeq, flockData, flockDim, neighDim);
 
 		cpuTime = seconds() - cpuTimeStart;
 		printf("    CPU elapsed time: %.5f (sec)\n", cpuTime);
 
 		printf("				Speedup: %.2f\n", cpuTime/(milliseconds / 1000));
 		
+		printf("\nNeighborhoods computation correctness: %i\n\n", checkNeighborhoodsCorrectness(neighborhoods, neighborhoodsSeq, flockData, flockDim));
 
-		
-		bool correct = 1;
-		for(int i = 0; i < flockDim; i++){
-				
-				if(!correct){
-						break;
-				}
+		//printNeighborhoods(neighborhoods, flockDim);
+		//printNeighborhoods(neighborhoodsSeq, flockDim);
 
-				for(int j = 0; j < flockDim; j++){
-						if(neighborhoodsSeq[i*flockDim+j] != neighborhoods[i*flockDim+j] && vector3Distance(flockData+i, flockData+i+flockDim, flockData+i+2*flockDim, flockData+j, flockData+j+flockDim, flockData+j+2*flockDim) != neighDim){
-								correct = 0;
-								printf("seq: %i, %.5f --- par: %i, %.5f\n", neighborhoodsSeq[i*flockDim+j], vector3Distance(flockData+i, flockData+i+flockDim, flockData+i+2*flockDim, flockData+j, flockData+j+flockDim, flockData+j+2*flockDim),
-								        neighborhoods[i*flockDim+j], sqrt(pow(flockData[i] - flockData[j], 2) + pow(flockData[i+flockDim] - flockData[j+flockDim], 2) + pow(flockData[i+2*flockDim] - flockData[j+2*flockDim], 2)));
-								printf("i: %i --- j: %i\n", i,j);
-								
-								std::cout << std::setprecision(4) << "Boid " << i << ": " << "pos(" << flockData[i] << ", " << flockData[i+flockDim] << ", " << flockData[i+flockDim*2] << 
-									"); dir(" << flockData[i+flockDim*3] << ", " << flockData[i+flockDim*4] << ", " << flockData[i+flockDim*5] << ")" << std::endl;
-								printf("Boid direction magnitude: %.5f\n", vector3Magnitude(flockData+i+flockDim*3, flockData+i+flockDim*4, flockData+i+flockDim*5));
+		// -------------------------------------FLOCK UPDATE---------------------------------------------
 
-								std::cout << std::setprecision(4) << "Boid " << j << ": " << "pos(" << flockData[j] << ", " << flockData[j+flockDim] << ", " << flockData[j+flockDim*2] << 
-									"); dir(" << flockData[j+flockDim*3] << ", " << flockData[j+flockDim*4] << ", " << flockData[j+flockDim*5] << ")" << std::endl;
-								printf("Boid direction magnitude: %.5f\n", vector3Magnitude(flockData+j+flockDim*3, flockData+j+flockDim*4, flockData+j+flockDim*5));
-								break;
-						}
-				}
-    }
-
-		printf("\nNeighborhoods computation correctness: %i\n\n", correct);
-/*
-		for(int i = 0; i < flockDim; i++){
-				std::cout << i << ": ";
-				for(int j = 0; j < flockDim; j++){
-						if(neighborhoods[i*flockDim+j]){
-								std::cout << j << ", ";
-						}
-				}
-				std::cout << std::endl;
-    }
-
-		for(int i = 0; i < flockDim; i++){
-				std::cout << i << ": ";
-				for(int j = 0; j < flockDim; j++){
-						if(neighborhoodsSeq[i*flockDim+j]){
-								std::cout << j << ", ";
-						}
-				}
-				std::cout << std::endl;
-    }
-*/
 		//prepare for flock updates
-		threadsNum = flockDim*2;
-		blockSize = UPDATE_BLOCK_SIZE;
-		gridSize = (threadsNum + blockSize - 1)/blockSize;
+		float movement = velocity * updateTime;
+
+		cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
+
+		threadsNum = flockDim*3;
+		int updateBlockSize = UPDATE_BLOCK_SIZE;
+		int updateGridSize = (threadsNum + updateBlockSize - 1)/updateBlockSize;
+
+		//prepare for CPU flock update
+		float* cohesion = (float*) malloc(3*sizeof(float));
+		float* separation = (float*) malloc(3*sizeof(float));
+		float* align = (float*) malloc(3*sizeof(float));
+		float* finalDirection = (float*) malloc(3*sizeof(float));
+
+		printf("\nthreadsNum: %i\n", threadsNum);
+		printf("gridSize: %i\n", updateGridSize);
+		printf("effthreadsNum: %i\n", updateBlockSize * updateGridSize);
+		if(threadsNum > updateBlockSize * updateGridSize){
+				std::cout << "\nNot enough threads" << std::endl;
+		}
+
+		// update total threads number in constant memory
+		cudaMemcpyToSymbol(threadsNumDev, &threadsNum, sizeof(threadsNumDev));
+		cudaMemcpyToSymbol(movementDev, &movement, sizeof(movementDev));
 
 		// start simulation loop that updates the flock each updateTime
 		double loopStart = seconds();
@@ -543,45 +543,55 @@ int main(void) {
 						printf("\n\nGPU Flock update...\n");
 						cudaEventRecord(start);
 
-						updateFlock<<<gridSize, blockSize>>>(flockData, neighborhoods);
+						//3 * 3 * flockDim * sizeof(float)
+						updateFlock<<<updateGridSize, updateBlockSize, 3 * 3 * flockDim  * sizeof(float)>>>(flockData, neighborhoods);
 
 						cudaEventRecord(stop);
 						CHECK(cudaEventSynchronize(stop));
 						cudaEventElapsedTime(&milliseconds, start, stop);
 						printf("    GPU elapsed time: %.5f (sec)\n", milliseconds / 1000);
 					
+						//print some boids to check the update correctness 
+						for(int i = 0; i < 10; i++){
+								printBoid(i, flockData, flockDim);
+						}
+						for(int i = flockDim-11; i < flockDim-1; i++){
+								printBoid(i, flockData, flockDim);
+						}
+						for(int i = flockDim/2-5; i < flockDim/2+5; i++){
+								printBoid(i, flockData, flockDim);
+						}
+					
 						// update the flock sequentially to check the result and measure the speed-up
 						
-
 						printf("\n\nCPU Flock update...\n");
 						double cpuTimeStart = seconds();
 
-						updateFlock(updateTime);
-					
+						updateFlock(updateTime, neighborhoodsSeq, flockData, flockDim, neighDim, separationWeight, cohesionWeight, alignWeight);
+
 						double cpuTime = seconds() - cpuTimeStart;
 						printf("    CPU elapsed time: %.5f (sec)\n", cpuTime);
 					
 						printf("				Speedup: %.2f\n", cpuTime/(milliseconds / 1000));
 						
-						//-------
-						
-					
 						computeAllNeighborhoods<<<neighGridSize, neighBlockSize>>>(flockData, neighborhoods);
 					
 						tmpTime += updateTime;
 						iterations--;
 
 						//std::cout << std::endl;
-						//printFlock();
+						//printFlock(flockData, flockDim);	
 					
 						//std::cout << std::endl;
-						//printNeighborhoods();
+						//printNeighborhoods(neighborhoodsSeq, flockDim);
 				}
 		}
 
-		CHECK(cudaFree(flockData));
-		CHECK(cudaFree(neighborhoods));
-		//free(neighborhoodsSeq);
+		cudaFree(flockData);
+		cudaFree(neighborhoods);
+	  //CHECK(cudaFree(flockData));
+		//CHECK(cudaFree(neighborhoods));
+		free(neighborhoodsSeq);
 		
 		cudaDeviceReset();
 		return 0;
