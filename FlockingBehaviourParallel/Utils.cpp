@@ -58,6 +58,8 @@ void blendDirections(const float* v, const float* w, const float* u, float* res)
     vector3Sum(res, v, res);
     vector3Sum(res, w, res);
     vector3Sum(res, u, res);
+
+    vector3Normalize(res);
 }
 
 float vector3Magnitude(const float* v){

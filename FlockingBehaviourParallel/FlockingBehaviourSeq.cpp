@@ -21,6 +21,10 @@ void computeNeighborhoods(bool* neighborhoodsSeq, float* flockData, int flockDim
 
 void getSeparationDirection(int i, float* separation, bool* neighborhoodsSeq, float* flockData, int flockDim, float separationWeight){
     
+		separation[0] = 0;
+		separation[1] = 0;
+		separation[2] = 0;
+
     float* tmp = (float*) malloc(3*sizeof(float));
 		float magnitude;
     for(int j = 0; j < flockDim; j++){
@@ -41,6 +45,10 @@ void getSeparationDirection(int i, float* separation, bool* neighborhoodsSeq, fl
 
 void getCohesionDirection(int i, float* cohesion, bool* neighborhoodsSeq, float* flockData, int flockDim, float cohesionWeight){
     
+		cohesion[0] = 0;
+		cohesion[1] = 0;
+		cohesion[2] = 0;
+
     float count = 0.0;
     for(int j = 0; j < flockDim; j++){
 				if(neighborhoodsSeq[i*flockDim+j]){
@@ -59,6 +67,10 @@ void getCohesionDirection(int i, float* cohesion, bool* neighborhoodsSeq, float*
 }
 
 void getAlignDirection(int i, float* align, bool* neighborhoodsSeq, float* flockData, int flockDim, float alignWeight){
+		
+		align[0] = 0;
+		align[1] = 0;
+		align[2] = 0;
     
     for(int j = 0; j < flockDim; j++){
 				if(neighborhoodsSeq[i*flockDim+j]){
@@ -70,14 +82,14 @@ void getAlignDirection(int i, float* align, bool* neighborhoodsSeq, float* flock
     vector3Mul(align, alignWeight, align);
 }
 
-void moveBoid(int i, float time, float* flockData, int flockDim) { 
-    
+void moveBoid(int i, float time, float* flockData, float* flockDataSeq, int flockDim) { 
+
     for(int j = 0; j < 3; j++){
-        flockData[i+j*flockDim] += flockData[i+(j+3)*flockDim] * velocity * time;
+        flockDataSeq[i+j*flockDim] = flockData[i+j*flockDim] + flockDataSeq[i+(j+3)*flockDim] * velocity * time;
     }
 }
 
-void updateFlock(float time, bool* neighborhoodsSeq, float* flockData, int flockDim, int neighDim, float separationWeight, float cohesionWeight, float alignWeight){
+void updateFlock(float time, bool* neighborhoodsSeq, float* flockData, float* flockDataSeq, int flockDim, int neighDim, float separationWeight, float cohesionWeight, float alignWeight){
     
     float* cohesion = (float*) malloc(3*sizeof(float));
     float* separation = (float*) malloc(3*sizeof(float));
@@ -91,12 +103,12 @@ void updateFlock(float time, bool* neighborhoodsSeq, float* flockData, int flock
 
         blendDirections(separation, cohesion, align, finalDirection);
         if (finalDirection[0] != 0 || finalDirection[1] != 0 || finalDirection[2] != 0) {
-            flockData[i+3*flockDim] = finalDirection[0];
-						flockData[i+4*flockDim] = finalDirection[1];
-						flockData[i+5*flockDim] = finalDirection[2];
+            flockDataSeq[i+3*flockDim] = finalDirection[0];
+						flockDataSeq[i+4*flockDim] = finalDirection[1];
+						flockDataSeq[i+5*flockDim] = finalDirection[2];
         }
 
-        moveBoid(i, time, flockData, flockDim);
+        moveBoid(i, time, flockData, flockDataSeq, flockDim);
     }
 
     free(cohesion);
@@ -104,7 +116,7 @@ void updateFlock(float time, bool* neighborhoodsSeq, float* flockData, int flock
     free(align);
     free(finalDirection);
 
-    computeNeighborhoods(neighborhoodsSeq, flockData, flockDim, neighDim);
+		//computeNeighborhoods(neighborhoodsSeq, flockData, flockDim, neighDim);
 }
 
 void generateFlock(float* flockDataSeq, int numsToGenerate, int maxRand, int minRand, int div){
@@ -170,6 +182,25 @@ bool checkNeighborhoodsCorrectness(bool* neighborhoods, bool* neighborhoodsSeq, 
 
 								break;
 						}
+				}
+    }
+
+    return correct;
+}
+
+bool checkUpdateCorrectness(float* flockData, float* flockDataSeq, int flockDim){
+		
+		bool correct = 1;
+		for(int i = 0; i < flockDim * 6; i++){
+
+				if(fabs(flockData[i] - flockDataSeq[i]) > tolerance){
+						
+					  correct = 0;
+
+						printf("i: %i\n", i);
+						printf("seq: %.5f --- par: %.5f\n", flockDataSeq[i], flockData[i]);
+
+						break;
 				}
     }
 
