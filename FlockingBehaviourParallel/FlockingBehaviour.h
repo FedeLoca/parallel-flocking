@@ -1,0 +1,44 @@
+#include "Utils.h"
+#include <stdlib.h>
+#include <time.h> 
+#include <iostream> 
+#include <iomanip>
+#include <curand_kernel.h>
+
+#ifndef FLOCKING_H
+#define FLOCKING_H
+
+extern float velocity;
+extern double updateTime;
+extern float separationWeight;
+extern float cohesionWeight;
+extern float alignWeight;
+extern int flockDim;
+extern float neighDim;
+extern float tolerance;
+extern int minRand;
+extern int maxRand;
+extern float decimals;
+extern int iterations;
+extern int generationsPerThread;
+
+extern float* flockData;
+extern bool* neighborhoods;
+extern bool* neighborhoodsSeq;
+
+void generateFlock(float*, int, int, int, int);
+
+void computeNeighborhoods(bool*, float*, int, float);
+bool checkNeighborhoodsCorrectness(bool*, bool*, float*, int);
+
+void updateFlock(float, bool*, float*, float*, int, int, float, float, float);
+void getSeparationDirection(int, float*, bool*, float*, int, float*);
+void getCohesionDirection(int, float*, bool*, float*, int, float*);
+void getAlignDirection(int, float*, bool*, float*, int, float*);
+void moveBoid(int, float, float*, float*, int);
+bool checkUpdateCorrectness(float*, float*, int);
+
+void printNeighborhoods(bool*, int);
+void printFlock(float*, int);
+void printBoid(int, float*, int);
+#endif
