@@ -131,13 +131,6 @@ __global__ void computeAllNeighborhoods(float* flockData, bool* neighborhoods) {
 				uint max = i + flockDimDev/unitNumDev;
 				tid = tid % flockDimDev;
 
-				if(max > flockDimDev){
-						printf("error i: %i\n",i);
-				}
-				if(tid >= flockDimDev){
-						printf("error tid: %i\n",tid);
-				}
-
 				bool value;
 				for(; i < max; i++){
 
@@ -644,7 +637,12 @@ int main(void) {
 						// update total threads number in constant memory
 						cudaMemcpyToSymbol(threadsNumDev, &neighThreadsNum, sizeof(threadsNumDev));
 						
-						computeAllNeighborhoods<<<neighGridSize, neighBlockSize>>>(flockData, neighborhoods);
+						//update the neighborhoods before the next iteration if more than one iteration must be done
+						if(iterations > 1){
+								printf("\n\n Neighborhoods update...\n");
+								//computeAllNeighborhoods<<<neighGridSize, neighBlockSize>>>(flockData, neighborhoods);
+								computeNeighborhoods(neighborhoodsSeq, flockData, flockDim, neighDim);
+						}
 					
 						tmpTime += updateTime;
 						iterations--;
